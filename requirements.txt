@@ -1,0 +1,6 @@
+ttkbootstrap
+tkinter
+os
+csv
+supabase
+websockets
