@@ -38,21 +38,10 @@ def bulkScanItems(items, ignore_conflicts=False):
     # Normalize to list of dicts
     payload = []
     for x in items:
-        
         if isinstance(x, dict):
             payload.append(x)
-        
         else:
-            try:
-                item_id, serial_number, pallet_id, product_id = x
-                payload.append({
-                    "item_id": item_id,
-                    "serial_number": str(serial_number).strip(),
-                    "pallet_id": str(pallet_id).strip(),
-                    "product_id": product_id,
-                })
-            except Exception as e:
-                print(f"Skipped malformed row {x}: {e}")
+            print(f'Skipped item {x}')
 
     if not payload:
         print("No valid rows to insert.")
@@ -60,7 +49,7 @@ def bulkScanItems(items, ignore_conflicts=False):
 
     try:
         if ignore_conflicts:
-            
+            # Upsert with ignore on conflict by (item_id, serial_number)
             resp = supabase.table("item") \
                 .upsert(payload, on_conflict="item_id,serial_number", ignore_duplicates=True) \
                 .execute()
@@ -249,27 +238,7 @@ def importFromCsv(csv_path):
     except Exception as e:
         print(f'Bulk insert failed: {e}')
         return 0
-
-def addPallet(pallet_id, shelf_id, product_id, notes='N/A'):
-    try:
-        data = {
-            "pallet_id": str(pallet_id),
-            "shelf_id": str(shelf_id),
-            "product_id": int(product_id),
-            "notes": notes,
-        }
-        resp = supabase.table("pallet").insert(data).execute()
         
-        if not _ensure_response_ok(resp, "add pallet"):
-            return False
-        
-        print('Pallet added')
-        return True
-    
-    except Exception as e:
-        print(f'Could not add pallet. Error: {e}')
-        return False
-
 # Convience Fetch Helpers
 def fetch_model_numbers():
     try:
