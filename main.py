@@ -28,7 +28,12 @@ def gui_bulk_add_serials():
     for serial in serials:
         serial = serial.strip()
         if serial:
-            items_to_insert.append((next_id, serial, pallet_id, product_id))
+            items_to_insert.append({
+                "item_id": next_id,
+                "serial_number": str(serial).strip(),
+                "pallet_id": str(pallet_id).strip(),
+                "product_id": product_id,
+            })
             next_id += 1
 
     count = bulkScanItems(items_to_insert, ignore_conflicts=False)
