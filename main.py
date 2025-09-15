@@ -138,7 +138,7 @@ def gui_add_pallet():
         messagebox.showerror("Error", "Could not add pallet.")
 
 # Main Window
-app = ttk.Window(title="Inventory Manager", themename="flatly", size=(1075, 750))
+app = ttk.Window(title="Inventory Manager", themename="flatly", size=(1375, 800))
 tabs = ttk.Notebook(app)
 tabs.pack(fill=BOTH, expand=YES, padx=10, pady=10)
 
