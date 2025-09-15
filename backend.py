@@ -238,6 +238,22 @@ def importFromCsv(csv_path):
     except Exception as e:
         print(f'Bulk insert failed: {e}')
         return 0
+
+def countItemsByModel():
+    try:
+        resp = supabase.table("stock_counts").select("*").execute()
+        return resp.data or []
+    except Exception as e:
+        print(f"Error fetching stock counts: {e}")
+        return []
+    
+def countPalletsByModel():
+    try:
+        resp = supabase.table("pallet_counts_by_model").select("*").execute()
+        return resp.data or []
+    except Exception as e:
+        print(f"Error fetching pallet counts: {e}")
+        return []
         
 # Convience Fetch Helpers
 def fetch_model_numbers():
