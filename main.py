@@ -278,6 +278,74 @@ btn_add_pallet.grid(row=4, column=0, columnspan=2, pady=10)
 
 frame7.columnconfigure(1, weight=1)
 
+# --- Tab 8: Stock Counts ---
+tab_stock = ttk.Frame(tabs)
+tabs.add(tab_stock, text="Stock Counts")
+
+frame_stock = ttk.LabelFrame(tab_stock, text="Current Stock by Model Number")
+frame_stock.pack(fill=BOTH, expand=YES, padx=5, pady=5)
+
+# Scrollbars
+scroll_y_stock = ttk.Scrollbar(frame_stock, orient=VERTICAL)
+scroll_x_stock = ttk.Scrollbar(frame_stock, orient=HORIZONTAL)
+
+tree_stock = ttk.Treeview(
+    frame_stock,
+    columns=("model_number", "count"),
+    show="headings",
+    bootstyle=INFO,
+    yscrollcommand=scroll_y_stock.set,
+    xscrollcommand=scroll_x_stock.set
+)
+scroll_y_stock.config(command=tree_stock.yview)
+scroll_x_stock.config(command=tree_stock.xview)
+
+scroll_y_stock.pack(side=RIGHT, fill=Y)
+scroll_x_stock.pack(side=BOTTOM, fill=X)
+tree_stock.pack(fill=BOTH, expand=YES)
+
+tree_stock.heading("model_number", text="Model Number")
+tree_stock.heading("count", text="Count")
+
+def load_stock_counts():
+    tree_stock.delete(*tree_stock.get_children())
+    data = countItemsByModel()
+    for row in data:
+        tree_stock.insert("", END, values=(row["model_number"], row["count"]))
+
+# --- Tab 9: Pallet Counts ---
+tab_pallet_counts = ttk.Frame(tabs)
+tabs.add(tab_pallet_counts, text="Pallet Counts")
+
+frame_pallet_counts = ttk.LabelFrame(tab_pallet_counts, text="Number of Pallets by Model Number")
+frame_pallet_counts.pack(fill=BOTH, expand=YES, padx=5, pady=5)
+
+scroll_y_pc = ttk.Scrollbar(frame_pallet_counts, orient=VERTICAL)
+scroll_x_pc = ttk.Scrollbar(frame_pallet_counts, orient=HORIZONTAL)
+
+tree_pallet_counts = ttk.Treeview(
+    frame_pallet_counts,
+    columns=("model_number", "pallet_count"),
+    show="headings",
+    bootstyle=INFO,
+    yscrollcommand=scroll_y_pc.set,
+    xscrollcommand=scroll_x_pc.set
+)
+scroll_y_pc.config(command=tree_pallet_counts.yview)
+scroll_x_pc.config(command=tree_pallet_counts.xview)
+
+scroll_y_pc.pack(side=RIGHT, fill=Y)
+scroll_x_pc.pack(side=BOTTOM, fill=X)
+tree_pallet_counts.pack(fill=BOTH, expand=YES)
+
+tree_pallet_counts.heading("model_number", text="Model Number")
+tree_pallet_counts.heading("pallet_count", text="Pallet Count")
+
+def load_pallet_counts():
+    tree_pallet_counts.delete(*tree_pallet_counts.get_children())
+    for row in countPalletsByModel():
+        tree_pallet_counts.insert("", END, values=(row["model_number"], row["pallet_count"]))
+
 def refresh_all_dropdowns():
     combo_model['values'] = fetch_model_numbers()
     combo_pallet['values'] = fetch_pallet_ids()
@@ -289,6 +357,10 @@ def on_tab_change(event):
     tab_text = event.widget.tab(event.widget.select(), "text")
     if tab_text in ("Add Items", "View by Pallet", "View by Product", "Add Pallet"):
         refresh_all_dropdowns()
+    elif tab_text == "Stock Counts":
+        load_stock_counts()
+    elif tab_text == "Pallet Counts":
+        load_pallet_counts()
 
 tabs.bind("<<NotebookTabChanged>>", on_tab_change)
 
