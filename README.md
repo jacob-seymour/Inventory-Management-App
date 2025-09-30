@@ -60,15 +60,21 @@ A full-stack inventory tracking system built for the **School District of Palm B
 ## 📂 Project Structure
 Inventory-Management-App/ 
 ```
-├── backend/           # Python backend logic: CRUD operations, Supabase API calls, data validation 
-├── main.py            # GUI frontend: ttkbootstrap tabs, event handling, user workflows 
-├── requirements.txt   # Python dependencies for backend and GUI 
-└── README.md          # Project overview and documentation
+├── backend/              # Python backend logic: CRUD operations, Supabase API calls, data validation 
+├── main.py               # GUI frontend: ttkbootstrap tabs, event handling, user workflows
+├── guiFunctions.py       # Functions that feed into the GUI frontend to allow for the code to be more readable and seperate in its functionality
+├── databaseSchema.sql    # SQL script to create the tables as used in the app
+├── palletCountsView.sql  # SQL script to create a supabase view that counts the pallets associated with each product_id
+├── palletInfoView.sql    # SQL script to create a supabase view that displays locations and model numbers for each pallet
+├── stockCountsView.sql   # SQL script to create a supabase view that counts the number of items for each product
+├── requirements.txt      # Python dependencies for backend and GUI 
+└── README.md             # Project overview and documentation
 ```
 
 ### Notes
 - `backend/` contains modular functions for database interaction, import/export logic, and error-proofing  
-- `main.py` is the entry point for the desktop GUI, integrating real-time filtering, tabbed views, and operator-friendly controls  
+- `main.py` is the entry point for the desktop GUI, integrating real-time filtering, tabbed views, and operator-friendly controls
+- `guiFunctions.py` contains all the functions that allow for all of the buttons and functions within the app to work  
 - `requirements.txt` ensures reproducible environments across deployments
 
 ---
