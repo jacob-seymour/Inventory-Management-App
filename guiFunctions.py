@@ -1,6 +1,5 @@
 import ttkbootstrap as ttk
 from tkinter import filedialog, messagebox, END
-from ttkbootstrap.constants import *
 from backend import *
 import threading
 
@@ -36,55 +35,6 @@ def on_pallet_select(event, widgets):
         combo_model.config(state="readonly")
         messagebox.showwarning("Not Found", f"No model number found for Pallet ID: {pallet_id}")
 
-# --- Core GUI Actions ---
-
-def gui_bulk_add_serials(widgets):
-    """Add multiple items with serial numbers based on the selected pallet."""
-    text_serials = widgets['text_serials']
-    combo_pallet = widgets['combo_pallet']
-
-    serials = text_serials.get("1.0", "end").strip().splitlines()
-    pallet_id = combo_pallet.get()
-
-    if not serials or not pallet_id:
-        messagebox.showwarning("Missing Data", "Please provide Serial Numbers and select a Pallet ID.")
-        return
-
-    # More efficient: Get product_id directly from pallet table
-    resp = supabase.table("pallet").select("product_id").eq("pallet_id", pallet_id).execute()
-    if not resp.data:
-        messagebox.showerror("Error", f"Could not find Pallet ID: {pallet_id} in the database.")
-        return
-    product_id = resp.data[0]["product_id"]
-
-    # Get next item_id
-    resp_max = supabase.table("item").select("item_id").order("item_id", desc=True).limit(1).execute()
-    next_id = (resp_max.data[0]["item_id"] + 1) if resp_max.data else 1
-
-    # Prepare items for insertion
-    items_to_insert = []
-    for serial in serials:
-        serial = serial.strip()
-        if serial:
-            items_to_insert.append({
-                "item_id": next_id,
-                "serial_number": serial,
-                "pallet_id": str(pallet_id).strip(),
-                "product_id": product_id,
-            })
-            next_id += 1
-
-    count = bulkScanItems(items_to_insert, ignore_conflicts=False)
-    messagebox.showinfo("Success", f"Inserted {count} items.")
-    
-    # Clear form
-    text_serials.delete("1.0", "end")
-    combo_pallet.set('')
-    # Trigger the event handler to reset the model combobox
-    on_pallet_select(None, widgets)
-
-# --- Other GUI Functions (unchanged from previous version, but included for completeness) ---
-
 # Thread-safe data fetching
 def fetch_data_for_dropdowns(app, widgets):
     """
@@ -108,60 +58,56 @@ def update_dropdowns_in_gui(widgets, model_numbers, pallet_ids):
     model_list = list(model_numbers) if model_numbers else []
     pallet_list = list(pallet_ids) if pallet_ids else []
     
-    widgets['combo_model']['values'] = model_list
-    widgets['combo_pallet']['values'] = pallet_list
-    widgets['combo_view_pallet']['values'] = pallet_list
-    widgets['combo_view_model']['values'] = model_list
-    widgets['combo_product_model']['values'] = model_list
-    
-    # Clear "Loading..." text
-    if widgets['combo_model'].get() == "Loading...":
-        widgets['combo_model'].set('')
-    if widgets['combo_pallet'].get() == "Loading...":
-        widgets['combo_pallet'].set('')
-    if widgets['combo_view_pallet'].get() == "Loading...":
-        widgets['combo_view_pallet'].set('')
-    if widgets['combo_view_model'].get() == "Loading...":
-        widgets['combo_view_model'].set('')
-    if widgets['combo_product_model'].get() == "Loading...":
-        widgets['combo_product_model'].set('')
-    
+    # Check if each key exists before trying to access it
+    if 'combo_model' in widgets:
+        widgets['combo_model']['values'] = model_list
+        if widgets['combo_model'].get() == "Loading...":
+            widgets['combo_model'].set('')
+
+    if 'combo_pallet' in widgets:
+        widgets['combo_pallet']['values'] = pallet_list
+        if widgets['combo_pallet'].get() == "Loading...":
+            widgets['combo_pallet'].set('')
+            
+    if 'combo_view_pallet' in widgets:
+        widgets['combo_view_pallet']['values'] = pallet_list
+        if widgets['combo_view_pallet'].get() == "Loading...":
+            widgets['combo_view_pallet'].set('')
+
+    if 'combo_view_model' in widgets:
+        widgets['combo_view_model']['values'] = model_list
+        if widgets['combo_view_model'].get() == "Loading...":
+            widgets['combo_view_model'].set('')
+            
+    if 'combo_product_model' in widgets:
+        widgets['combo_product_model']['values'] = model_list
+        if widgets['combo_product_model'].get() == "Loading...":
+            widgets['combo_product_model'].set('')
+
     print("Dropdowns updated with fresh data.")
 
-def gui_bulk_remove(widgets):
-    """Remove multiple items by serial number."""
-    text_bulk_remove = widgets['text_bulk_remove']
-    sns = text_bulk_remove.get("1.0", "end").strip().splitlines()
-    
-    if not sns:
-        messagebox.showwarning("Warning", "No serial numbers entered")
-        return
-    
-    count = bulkRemoveItems(sns)
-    messagebox.showinfo("Success", f"Removed {count} items.")
-    text_bulk_remove.delete("1.0", "end")
-
-def gui_import_csv():
-    """Import items from CSV file."""
-    path = filedialog.askopenfilename(title="Select CSV File", filetypes=[("CSV", "*.csv")])
-    if not path:
-        return
-    
-    count = importFromCsv(path)
-    messagebox.showinfo("Import Complete", f"Imported {count} items from {path}")
-
 def gui_view_by_pallet(widgets):
-    """Display items filtered by pallet ID."""
+    """Display items filtered by pallet ID and show shelf location."""
+    # --- Get widgets from the dictionary ---
     combo_view_pallet = widgets['combo_view_pallet']
     tree_items = widgets['tree_items']
-    
+    shelf_id_label = widgets['shelf_id_label']  # Get the shelf label widget
+
     pid = combo_view_pallet.get()
     if not pid:
         messagebox.showwarning("Missing Data", "Select a pallet ID")
         return
-    
+
+    # --- Fetch and display the shelf location ---
+    shelf_id = get_shelf_for_pallet(pid)  # Call backend to get shelf ID
+    if shelf_id:
+        shelf_id_label.config(text=f"Shelf Location: {shelf_id}")
+    else:
+        shelf_id_label.config(text="Shelf Location: Not Found")
+
+    # --- Fetch and display items for the selected pallet ---
     rows = selectItemsByPallet(pid)
-    
+
     # Clear and populate tree
     tree_items.delete(*tree_items.get_children())
     for row in rows:
@@ -191,80 +137,23 @@ def gui_view_by_product(widgets):
     for row in rows:
         tree_items_product.insert('', 'end', values=row)
 
-def gui_add_product(widgets):
-    """Add a new product to database."""
-    entry_prod_name = widgets['entry_prod_name']
-    entry_prod_desc = widgets['entry_prod_desc']
-    entry_model_num = widgets['entry_model_num']
+def gui_view_by_aisle(widgets):
+    """Display pallets filtered by aisle."""
+    combo_view_aisle = widgets['combo_view_aisle']
+    tree_aisle_pallets = widgets['tree_aisle_pallets']
 
-    # Get next product_id
-    resp_max = supabase.table("product").select("product_id").order("product_id", desc=True).limit(1).execute()
-    
-    try:
-        pid = resp_max.data[0]["product_id"] + 1 if resp_max.data else 1
-        pname = entry_prod_name.get().strip()
-        pdesc = entry_prod_desc.get().strip()
-        mnum = entry_model_num.get().strip()
-
-        if not pname or not mnum:
-            messagebox.showwarning("Missing Data", "Product Name and Model Number are required.")
-            return
-
-        success = addProduct(pid, pname, pdesc, mnum)
-        if success:
-            messagebox.showinfo("Success", f"Product {pname} added successfully.")
-            
-            # Clear form
-            entry_prod_name.delete(0, END)
-            entry_prod_desc.delete(0, END)
-            entry_model_num.delete(0, END)
-            
-            # Clear cache and refresh dropdowns
-            clear_dropdown_cache()
-            refresh_all_dropdowns(widgets['app'], widgets)
-        else:
-            messagebox.showerror("Error", "Could not add product.")
-    except ValueError:
-        messagebox.showerror("Error", "Product ID must be an integer.")
-
-def gui_add_pallet(widgets):
-    """Add a new pallet to database."""
-    entry_pallet_id = widgets['entry_pallet_id']
-    entry_shelf_id = widgets['entry_shelf_id']
-    combo_product_model = widgets['combo_product_model']
-    entry_notes = widgets['entry_notes']
-    
-    pid = entry_pallet_id.get().strip()
-    sid = entry_shelf_id.get().strip()
-    model_number = combo_product_model.get().strip()
-    notes = entry_notes.get().strip() or "N/A"
-
-    if not pid or not sid or not model_number:
-        messagebox.showwarning("Missing Data", "Pallet ID, Shelf ID, and Product are required.")
+    aisle = combo_view_aisle.get()
+    if not aisle or aisle == "Select an Aisle":
+        messagebox.showwarning("Missing Data", "Please select an aisle from the dropdown.")
         return
-
-    # Get product_id for model
-    resp = supabase.table("product").select("product_id").eq("model_number", model_number).execute()
-    if not resp.data:
-        messagebox.showerror("Error", f"No product found for model {model_number}")
-        return
-    product_id = resp.data[0]["product_id"]
-
-    success = addPallet(pid, sid, product_id, notes)
-    if success:
-        messagebox.showinfo("Success", f"Pallet {pid} added successfully.")
-        
-        # Clear form
-        entry_pallet_id.delete(0, END)
-        entry_shelf_id.delete(0, END)
-        combo_product_model.set('')
-        entry_notes.delete(0, END)
-        
-        # Clear cache and refresh dropdowns
-        clear_dropdown_cache()
-        refresh_all_dropdowns(widgets['app'], widgets)
-    else:
-        messagebox.showerror("Error", "Could not add pallet.")
+    
+    rows = viewPalletByAisle(aisle)
+    
+    # Clear and populate tree
+    tree_aisle_pallets.delete(*tree_aisle_pallets.get_children())
+    for row in rows:
+        # The backend function returns a dict, so get values in order for the tree
+        tree_aisle_pallets.insert('', 'end', values=(row["pallet_id"], row["shelf_id"], row["model_number"]))
 
 def load_stock_counts(tree_stock):
     """Load stock counts by model into treeview."""
