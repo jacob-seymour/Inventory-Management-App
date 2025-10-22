@@ -3,8 +3,8 @@ from supabase import create_client, Client
 from functools import lru_cache
 
 # Supabase Connection
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://hgefjcbhfrhpioxhvtos.supabase.co")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "sb_publishable_G3bflVTGpVEYUfTCNxgqHQ_GV1UBAkS")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
