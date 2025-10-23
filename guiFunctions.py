@@ -1,6 +1,5 @@
 import ttkbootstrap as ttk
 from tkinter import filedialog, messagebox, END
-from ttkbootstrap.constants import *
 from backend import *
 import threading
 
@@ -83,8 +82,6 @@ def gui_bulk_add_serials(widgets):
     # Trigger the event handler to reset the model combobox
     on_pallet_select(None, widgets)
 
-# --- Other GUI Functions (unchanged from previous version, but included for completeness) ---
-
 # Thread-safe data fetching
 def fetch_data_for_dropdowns(app, widgets):
     """
@@ -113,6 +110,8 @@ def update_dropdowns_in_gui(widgets, model_numbers, pallet_ids):
     widgets['combo_view_pallet']['values'] = pallet_list
     widgets['combo_view_model']['values'] = model_list
     widgets['combo_product_model']['values'] = model_list
+    widgets['combo_remove_pallet']['values'] = pallet_list
+    widgets['combo_modify_pallet_select']['values'] = pallet_list # Added new combobox
     
     # Clear "Loading..." text
     if widgets['combo_model'].get() == "Loading...":
@@ -125,6 +124,10 @@ def update_dropdowns_in_gui(widgets, model_numbers, pallet_ids):
         widgets['combo_view_model'].set('')
     if widgets['combo_product_model'].get() == "Loading...":
         widgets['combo_product_model'].set('')
+    if widgets['combo_remove_pallet'].get() == "Loading...":
+        widgets['combo_remove_pallet'].set('')
+    if widgets['combo_modify_pallet_select'].get() == "Loading...": # Added new combobox
+        widgets['combo_modify_pallet_select'].set('')
     
     print("Dropdowns updated with fresh data.")
 
@@ -190,6 +193,23 @@ def gui_view_by_product(widgets):
     tree_items_product.delete(*tree_items_product.get_children())
     for row in rows:
         tree_items_product.insert('', 'end', values=row)
+
+def gui_view_by_aisle(widgets):
+    """Display pallets filtered by aisle."""
+    combo_view_aisle = widgets['combo_view_aisle']
+    tree_aisle_pallets = widgets['tree_aisle_pallets']
+
+    aisle = combo_view_aisle.get()
+    if not aisle or aisle == "Select an Aisle":
+        messagebox.showwarning("Missing Data", "Please select an aisle from the dropdown.")
+        return
+    
+    rows = viewPalletByAisle(aisle)
+
+    tree_aisle_pallets.delete(*tree_aisle_pallets.get_children())
+    for row in rows:
+        # The backend function returns a dict, so get values in order for the tree
+        tree_aisle_pallets.insert('', 'end', values=(row["pallet_id"], row["shelf_id"], row["model_number"]))
 
 def gui_add_product(widgets):
     """Add a new product to database."""
@@ -266,6 +286,75 @@ def gui_add_pallet(widgets):
     else:
         messagebox.showerror("Error", "Could not add pallet.")
 
+def gui_remove_pallet(widgets):
+    """GUI action to remove a pallet and all its associated items."""
+    combo_remove_pallet = widgets['combo_remove_pallet']
+    pallet_id = combo_remove_pallet.get()
+    
+    if not pallet_id:
+        messagebox.showwarning("Missing Data", "Please select a Pallet ID to remove.")
+        return
+
+    # Ask for confirmation
+    confirm = messagebox.askyesno(
+        "Confirm Deletion",
+        f"Are you sure you want to delete Pallet '{pallet_id}'?\n\n"
+        f"WARNING: This will also delete ALL items currently on this pallet.\n"
+        f"This action cannot be undone."
+    )
+    
+    if not confirm:
+        return # User clicked No
+
+    try:
+        success = removePallet(pallet_id) # Call the backend function
+        
+        if success:
+            messagebox.showinfo("Success", f"Pallet {pallet_id} and all its items were successfully removed.")
+            
+            # Clear the selection
+            combo_remove_pallet.set('')
+            
+            # Clear cache and refresh all dropdowns
+            clear_dropdown_cache()
+            refresh_all_dropdowns(widgets['app'], widgets)
+        else:
+            messagebox.showerror("Error", f"Could not remove pallet {pallet_id}. It may have already been deleted or another error occurred. Check the console.")
+            
+    except Exception as e:
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
+
+def gui_update_pallet_shelf(widgets):
+    """GUI action to update the shelf ID of an existing pallet."""
+    combo_select = widgets['combo_modify_pallet_select']
+    entry_shelf = widgets['entry_new_shelf_id']
+    
+    pallet_id = combo_select.get()
+    new_shelf_id = entry_shelf.get().strip()
+    
+    if not pallet_id or not new_shelf_id:
+        messagebox.showwarning("Missing Data", "Please select a pallet AND enter a new shelf ID.")
+        return
+
+    try:
+        success = updatePalletShelf(pallet_id, new_shelf_id)
+        
+        if success:
+            messagebox.showinfo("Success", f"Pallet {pallet_id} location updated to {new_shelf_id}.")
+            
+            # Clear form
+            combo_select.set('')
+            entry_shelf.delete(0, END)
+            
+            # Note: No dropdown refresh is needed, but the change
+            # will be visible if the user visits the 'Pallet Info'
+            # or 'View by Aisle' tabs, as they reload data.
+        else:
+            messagebox.showerror("Error", f"Could not update pallet {pallet_id}. It may not exist.")
+            
+    except Exception as e:
+        messagebox.showerror("Error", f"An unexpected error occurred: {e}")
+
 def load_stock_counts(tree_stock):
     """Load stock counts by model into treeview."""
     tree_stock.delete(*tree_stock.get_children())
@@ -295,10 +384,13 @@ def refresh_all_dropdowns(app, widgets):
 def on_tab_change(event, widgets):
     """Handle tab change events - load data as needed."""
     app = widgets['app']
-    tab_text = event.widget.tab(event.widget.select(), "text")
-    
+    try:
+        tab_text = event.widget.tab(event.widget.select(), "text")
+    except Exception:
+        return # Error getting tab, probably during startup
+
     # Only refresh dropdowns for tabs that need them
-    if tab_text in ("Add Items", "View by Pallet", "View by Model", "Add Pallet"):
+    if tab_text in ("Manage Items", "View by Pallet", "View by Model", "Manage Pallets"): # Updated tab name
         refresh_all_dropdowns(app, widgets)
     elif tab_text == "Stock Counts":
         load_stock_counts(widgets['tree_stock'])
