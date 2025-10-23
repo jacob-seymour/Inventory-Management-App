@@ -108,6 +108,78 @@ def addPallet(pallet_id, shelf_id, product_id, notes='N/A'):
     except Exception as e:
         print(f'Could not add pallet. Error: {e}')
         return False
+    
+def removePallet(pallet_id):
+    """
+    Removes all items associated with the given pallet_id,
+    and then removes the pallet itself.
+    """
+    if not pallet_id:
+        print("No pallet_id provided")
+        return False
+    
+    pid = str(pallet_id).strip()
+
+    try:
+        # Step 1: Delete all items on the pallet
+        print(f"Attempting to delete items from pallet {pid}...")
+        resp_items = supabase.table("item").delete().eq("pallet_id", pid).execute()
+        
+        if not _ensure_response_ok(resp_items, f"delete items for pallet {pid}"):
+            print(f"Failed to delete items for pallet {pid}. Aborting pallet deletion.")
+            return False
+        
+        deleted_items_count = len(resp_items.data or [])
+        print(f"Deleted {deleted_items_count} items from pallet {pid}.")
+
+        # Step 2: Delete the pallet itself
+        print(f"Attempting to delete pallet {pid}...")
+        resp_pallet = supabase.table("pallet").delete().eq("pallet_id", pid).execute()
+        
+        if not _ensure_response_ok(resp_pallet, f"delete pallet {pid}"):
+            print(f"Failed to delete pallet {pid}. Note: {deleted_items_count} items were already deleted.")
+            return False
+        
+        # Check if the pallet was actually found and deleted
+        if not resp_pallet.data:
+            print(f"Pallet {pid} not found. Could not delete.")
+            return False
+
+        print(f"Successfully deleted pallet {pid} and its {deleted_items_count} items.")
+        return True
+        
+    except Exception as e:
+        print(f'Error during pallet removal ({pid}): {e}')
+        return False
+
+def updatePalletShelf(pallet_id, new_shelf_id):
+    """Updates the shelf_id for a given pallet_id."""
+    if not pallet_id or not new_shelf_id:
+        print("Missing pallet_id or new_shelf_id")
+        return False
+    
+    pid = str(pallet_id).strip()
+    sid = str(new_shelf_id).strip()
+
+    try:
+        resp = supabase.table("pallet") \
+            .update({"shelf_id": sid}) \
+            .eq("pallet_id", pid) \
+            .execute()
+        
+        if not _ensure_response_ok(resp, f"update shelf for pallet {pid}"):
+            return False
+        
+        if not resp.data:
+            print(f"Pallet {pid} not found. Could not update shelf.")
+            return False
+            
+        print(f"Successfully updated pallet {pid} to new shelf {sid}.")
+        return True
+    except Exception as e:
+        print(f'Error updating pallet shelf: {e}')
+        return False
+
 
 def addProduct(product_id, product_name, product_description, model_number):
     """Add a new product to database."""
@@ -251,6 +323,40 @@ def getPalletInfo():
         return resp.data or []
     except Exception as e:
         print(f"Error fetching pallet info: {e}")
+        return []
+    
+def viewPalletByAisle(aisle):
+    """Get pallet info (ID, shelf, model) filtered by aisle location."""
+    try:
+        # Start query on the pallet_info_view
+        query = supabase.table("pallet_info_view").select("pallet_id, shelf_id, model_number")
+        
+        if aisle == 'Narrow Aisle': # Shelf ids starting with 1, or starting with 2 but NOT 298 or 299
+            query = query.or_("shelf_id.like.1*,and(shelf_id.like.2*,shelf_id.not.in.(298-1,298-2,298-3,298-4,299-1,299-2,299-3,299-4))")
+
+        elif aisle == 'Wide Aisle': # Shelf ids starting with 3 or 4, PLUS shelves 298 and 299
+            query = query.or_("shelf_id.like.3%,shelf_id.like.4%,shelf_id.eq.298-1,shelf_id.eq.298-2,shelf_id.eq.298-3,shelf_id.eq.298-4,shelf_id.eq.299-1,shelf_id.eq.299-2,shelf_id.eq.299-3,shelf_id.eq.299-4")
+
+        elif aisle == 'Cable Aisle': # Shelf ids beginning with a 5 and 6
+            query = query.or_("shelf_id.like.5%,shelf_id.like.6%")
+
+        elif aisle == 'Aisle 4': #Shelf ids beginning with a 7
+            query = query.like("shelf_id", "7%")
+
+        elif aisle == 'Loading bay': #Sheld ids that are exactly 'Lb'
+            query = query.eq("shelf_id", "Lb")
+        else:
+            return [] # Return empty list if aisle is not recognized
+
+        resp = query.execute()
+
+        if not _ensure_response_ok(resp, f"view pallets by aisle {aisle}"):
+            return []
+
+        return resp.data or []
+
+    except Exception  as e:
+        print(f'Error fetching pallets from that aisle: {e}')
         return []
 
 # Cached Fetch Helpers (with TTL-like behavior via manual cache clearing)
